@@ -182,9 +182,24 @@ docker run -d --name registry --restart unless-stopped \
 
 ### B. Push ke GHCR lalu deploy di Railway (via image)
 
-1. Buat Personal Access Token (fine-grained) dengan izin **Packages → Read
-   and write**.
-2. Push image:
+**Sekarang otomatis:** workflow `.github/workflows/ghcr.yml` membuild & push
+image ke GHCR setiap push ke branch `main` (memakai `GITHUB_TOKEN` bawaan,
+tanpa PAT). Hasil push pertama: **`ghcr.io/aiamfree/container-image-hosting:latest`**
+(paket private).
+
+Untuk menarik image tersebut (pull) atau memakainya di Railway, Anda perlu
+salah satu dari:
+
+1. **Token dengan izin Packages → Read** (untuk `docker pull` / Railway
+   "Deploy from Docker Image"):
+   ```bash
+   echo "<PAT>" | docker login ghcr.io -u AIamfree --password-stdin
+   docker pull ghcr.io/aiamfree/container-image-hosting:latest
+   ```
+2. **Jadikan paket public** (GitHub → paket → Package settings → Change
+   visibility → Public), lalu pull tanpa login.
+
+Push manual (bila ingin dari mesin sendiri):
 
 ```bash
 docker load -i container-image-hosting.tar.gz
@@ -192,10 +207,6 @@ docker tag container-image-hosting:latest ghcr.io/<USERNAME>/container-image-hos
 echo "<PAT>" | docker login ghcr.io -u <USERNAME> --password-stdin
 docker push ghcr.io/<USERNAME>/container-image-hosting:latest
 ```
-
-3. Di Railway: **New Project → Deploy from Docker Image** → isi
-   `ghcr.io/<USERNAME>/container-image-hosting:latest`, tambahkan semua
-   variabel di atas sebagai Service Variables, dan pasang volume `/data`.
 
 ### C. Railway langsung dari repo GitHub (Dockerfile)
 
