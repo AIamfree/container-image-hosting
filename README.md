@@ -156,6 +156,53 @@ disarankan untuk production**.
 
 ---
 
+## Deploy dari Docker image (siap pakai)
+
+Image sudah dibuild dan teruji: **`container-image-hosting:latest`**
+(sha256 `b7d79b425577`, ±154 MB, tersedia juga sebagai
+`container-image-hosting.tar.gz`).
+
+### A. Jalankan image langsung (lokal / VPS)
+
+```bash
+docker load -i container-image-hosting.tar.gz
+
+docker run -d --name registry --restart unless-stopped \
+  -p 80:80 \
+  -v registry_data:/data \
+  -e DROPBOX_APP_KEY=<app_key> \
+  -e DROPBOX_APP_SECRET=<app_secret> \
+  -e DROPBOX_REFRESH_TOKEN='<blok JSON dari rclone authorize>' \
+  -e AUTH_USER=<user> -e AUTH_PASS=<pass> \
+  -e PANEL_USER=admin -e PANEL_PASS=<pass> \
+  container-image-hosting:latest
+```
+
+> Tanpa variabel `PORT`, nginx cukup listen di port 80 (sudah dipetakan).
+
+### B. Push ke GHCR lalu deploy di Railway (via image)
+
+1. Buat Personal Access Token (fine-grained) dengan izin **Packages → Read
+   and write**.
+2. Push image:
+
+```bash
+docker load -i container-image-hosting.tar.gz
+docker tag container-image-hosting:latest ghcr.io/<USERNAME>/container-image-hosting:latest
+echo "<PAT>" | docker login ghcr.io -u <USERNAME> --password-stdin
+docker push ghcr.io/<USERNAME>/container-image-hosting:latest
+```
+
+3. Di Railway: **New Project → Deploy from Docker Image** → isi
+   `ghcr.io/<USERNAME>/container-image-hosting:latest`, tambahkan semua
+   variabel di atas sebagai Service Variables, dan pasang volume `/data`.
+
+### C. Railway langsung dari repo GitHub (Dockerfile)
+
+Lihat [Deployment → Railway](#a-railway-target-utama).
+
+---
+
 ## Deployment
 
 ### A. Railway (target utama)
