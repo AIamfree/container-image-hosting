@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control Panel — Container Image Hosting</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --border:#2b3544;
+    --text:#e6edf3; --muted:#8b98a9; --accent:#3fb950; --warn:#d29922;
+    --danger:#f85149; --blue:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+  .wrap{max-width:960px;margin:0 auto;padding:24px 16px 64px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+         padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-radius:12px}
+  header h1{font-size:17px;margin:0;display:flex;align-items:center;gap:10px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--muted);display:inline-block}
+  .dot.ok{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .dot.bad{background:var(--danger)}
+  .muted{color:var(--muted)}
+  .banner{background:rgba(210,153,34,.12);border:1px solid var(--warn);color:#e3b341;
+          padding:10px 14px;border-radius:8px;margin:14px 0;font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .card .v{font-size:18px;font-weight:700;margin-top:4px;word-break:break-all}
+  .card .v small{font-size:12px;font-weight:400;color:var(--muted)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+  button{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+         border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-weight:600}
+  button:hover{border-color:var(--blue)}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#04121f}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .panel h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{background:var(--panel2);border:1px solid var(--border);border-radius:20px;
+       padding:2px 10px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  code{background:var(--panel2);border:1px solid var(--border);border-radius:6px;
+       padding:2px 6px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+  .cmd{display:flex;align-items:center;gap:6px}
+  .empty{padding:20px;color:var(--muted);text-align:center}
+  .statusline{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:14px}
+  .ok{color:var(--accent)} .bad{color:var(--danger)} .warn{color:var(--warn)}
+  a{color:var(--blue)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dot" id="dot"></span> Container Image Hosting</h1>
+    <span class="muted" id="hostline"></span>
+  </header>
+
+  <div id="banner" class="banner" style="display:none">
+    ⚠️ Panel TANPA password — set variabel <code>PANEL_PASS</code> untuk mengamankan.
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="k">Registry</div><div class="v" id="c-registry">—</div></div>
+    <div class="card"><div class="k">Dropbox</div><div class="v" id="c-dropbox">—</div></div>
+    <div class="card"><div class="k">Storage /data</div><div class="v" id="c-storage">—</div></div>
+    <div class="card"><div class="k">Sinkron terakhir</div><div class="v" id="c-sync"><small>—</small></div></div>
+    <div class="card"><div class="k">Interval sync</div><div class="v" id="c-interval">—</div></div>
+    <div class="card"><div class="k">Uptime</div><div class="v" id="c-uptime">—</div></div>
+  </div>
+
+  <div class="row">
+    <button class="primary" id="btn-sync" onclick="doSync()">⟳ Sinkronkan ke Dropbox sekarang</button>
+    <button onclick="loadAll()">Refresh data</button>
+  </div>
+
+  <div class="panel">
+    <h2>📦 Images di registry</h2>
+    <div id="images"><div class="empty">Memuat…</div></div>
+  </div>
+
+  <div class="statusline">
+    <span id="s-env"></span>
+    <span id="s-time"></span>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let HOST = '';
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  if(!r.ok){ throw new Error('HTTP '+r.status); }
+  return r.json();
+}
+
+function fmtUptime(s){
+  if(s==null) return '—';
+  const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
+  return (d?d+'h ':'' ) + (h?h+'j ':'') + m+'m';
+}
+
+async function loadStatus(){
+  try{
+    const s = await api('api/status');
+    const dot = $('dot');
+    dot.className = 'dot ' + ((s.registry && s.registry.ok) ? 'ok':'bad');
+
+    $('c-registry').innerHTML = (s.registry && s.registry.ok)
+      ? '<span class="ok">aktif</span>' : '<span class="bad">down</span>';
+
+    $('c-dropbox').innerHTML = s.dropbox.configured
+      ? '<span class="ok">terhubung</span>' : '<span class="warn">tidak dikonfigurasi</span>';
+
+    $('c-storage').textContent = (s.storage && s.storage.human) || '—';
+    $('c-interval').innerHTML = (s.sync.interval || 0) + ' <small>detik</small>';
+    $('c-uptime').textContent = fmtUptime(s.uptime);
+
+    const st = s.sync || {};
+    if(st.last_sync){
+      const cls = st.ok ? 'ok' : 'bad';
+      $('c-sync').innerHTML = '<span class="'+cls+'">'+esc(st.last_sync.replace('T',' ').replace('Z',' UTC'))+'</span>';
+    } else {
+      $('c-sync').innerHTML = '<small>belum pernah</small>';
+    }
+
+    $('banner').style.display = s.panel_auth ? 'none' : 'block';
+
+    const e = s.env || {};
+    $('s-env').innerHTML =
+      '<b>Env:</b> AppKey '+(e.app_key_set?'✓':'✗')+
+      ' · Secret '+(e.app_secret_set?'✓':'✗')+
+      ' · RefreshToken '+(e.refresh_token_set?'✓':'✗')+
+      ' · AuthRegistry '+(e.registry_auth_enabled?'✓':'✗');
+    $('s-time').textContent = 'Pembaruan: '+esc((s.time||'').replace('T',' ').replace('Z',' UTC'));
+  }catch(err){
+    const dot=$('dot'); dot.className='dot bad';
+  }
+}
+
+async function loadImages(){
+  const box = $('images');
+  try{
+    const d = await api('api/images');
+    if(d.error){ box.innerHTML = '<div class="empty"><span class="bad">'+esc(d.error)+'</span></div>'; return; }
+    const imgs = d.images || [];
+    if(imgs.length===0){
+      box.innerHTML = '<div class="empty">Belum ada image. Push dengan: <code>docker push '+esc(HOST)+'/namaimage:tag</code></div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>Repository</th><th>Tags</th><th>Perintah pull</th></tr></thead><tbody>';
+    for(const im of imgs){
+      const tags = (im.tags||[]).map(t=>'<span class="tag">'+esc(t)+'</span>').join('') || '<span class="muted">(tanpa tag)</span>';
+      const cmd = HOST+'/'+im.name+':'+((im.tags||[])[0]||'latest');
+      html += '<tr><td><code>'+esc(im.name)+'</code></td><td><div class="tags">'+tags+'</div></td>'+
+              '<td><div class="cmd"><code>docker pull '+esc(cmd)+'</code>'+
+              '<button onclick="copyCmd(this,\''+esc(cmd)+'\')">copy</button></div></td></tr>';
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  }catch(err){
+    box.innerHTML = '<div class="empty"><span class="bad">Gagal memuat: '+esc(err.message)+'</span></div>';
+  }
+}
+
+function copyCmd(btn, cmd){
+  (navigator.clipboard ? navigator.clipboard.writeText(cmd) : Promise.reject())
+    .then(()=>{btn.textContent='✓';setTimeout(()=>btn.textContent='copy',1200)})
+    .catch(()=>{btn.textContent='gagal'});
+}
+
+async function doSync(){
+  const btn = $('btn-sync');
+  btn.disabled = true; btn.textContent = 'Menyinkronkan…';
+  try{
+    const r = await api('api/sync', {method:'POST'});
+    if(r.busy){ alert('Sinkronisasi masih berjalan, tunggu sebentar.'); }
+    else if(r.ok){ btn.textContent = 'Selesai ✓ ('+r.duration_sec+'s)'; }
+    else { btn.textContent = 'Gagal'; alert('Sync gagal: '+((r.state&&r.state.error)||r.error||'')); }
+  }catch(err){
+    btn.textContent='Error'; alert('Error: '+err.message);
+  }finally{
+    setTimeout(()=>{btn.disabled=false; btn.textContent='⟳ Sinkronkan ke Dropbox sekarang';},2000);
+    loadStatus();
+  }
+}
+
+function loadAll(){ loadStatus(); loadImages(); }
+
+HOST = window.location.host;
+$('hostline').textContent = HOST;
+loadAll();
+setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>

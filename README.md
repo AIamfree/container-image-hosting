@@ -52,6 +52,7 @@ privilege.
 - ✅ Storage Dropbox via rclone sync (tanpa FUSE/mount).
 - ✅ Semua kredensial **environment variable**, aman & mudah diedit.
 - ✅ Basic auth opsional untuk melindungi registry.
+- ✅ **Control panel web ringan** di `/_panel/` (lihat [Control Panel](#control-panel)).
 - ✅ Health check `/healthz` (untuk Railway & Docker).
 - ✅ Restore otomatis saat volume kosong; sync berkala + sync akhir saat
   shutdown.
@@ -68,7 +69,10 @@ privilege.
 ├── check_dropbox.sh        # validasi kredensial Dropbox
 ├── nginx/
 │   ├── nginx.conf
-│   └── conf.d/default.conf # vhost reverse proxy + /healthz
+│   └── conf.d/default.conf # vhost reverse proxy + /healthz + /_panel/
+├── panel/
+│   ├── server.py           # backend control panel (Python stdlib)
+│   └── index.html          # UI control panel (tanpa dependensi eksternal)
 ├── registry/config.yml     # konfigurasi registry (filesystem /data)
 ├── docker-compose.yml      # untuk development lokal
 ├── railway.json            # konfigurasi deploy Railway
@@ -118,7 +122,8 @@ Lalu isi nilai di `.env`:
 | `DROPBOX_REFRESH_TOKEN` | Blok JSON refresh token (untuk sync) |
 | `DROPBOX_ACCESS_TOKEN` | (Opsional) token `sl.` untuk uji cepat |
 | `DROPBOX_PATH` | Folder tujuan di Dropbox (default `container-images`) |
-| `REGISTRY_AUTH_USER` / `REGISTRY_AUTH_PASS` | (Opsional) basic auth |
+| `REGISTRY_AUTH_USER` / `REGISTRY_AUTH_PASS` | (Opsional) basic auth registry |
+| `PANEL_USER` / `PANEL_PASS` | (Opsional) kredensial control panel di `/_panel/` |
 | `SYNC_INTERVAL_SECONDS` | Interval backup ke Dropbox (default 300) |
 
 Cek kredensial Anda:
@@ -126,6 +131,28 @@ Cek kredensial Anda:
 ```bash
 ./check_dropbox.sh
 ```
+
+---
+
+## Control Panel
+
+Buka **`https://<host>/_panel/`** setelah service berjalan. Panel ini sangat
+ringan (backend Python stdlib + satu halaman HTML, tanpa framework/dependensi
+eksternal) dan menyediakan:
+
+- Status live: **Registry**, **Dropbox** (terkonfigurasi/tidak), pemakaian
+  storage `/data`, **sinkron terakhir**, interval sync, dan uptime.
+- Tombol **"Sinkronkan ke Dropbox sekarang"** — memicu sync manual tanpa
+  menunggu interval.
+- Daftar **images & tags** yang ada di registry + perintah
+  `docker pull` siap salin.
+- Indikator konfigurasi env (AppKey / Secret / RefreshToken / AuthRegistry)
+  — hanya status ✓/✗, nilai rahasia **tidak pernah** ditampilkan.
+
+**Keamanan panel:** lindungi dengan mengisi `PANEL_USER` dan `PANEL_PASS`
+(via `.env` lokal atau Variables Railway). Jika `PANEL_PASS` kosong, panel
+tetap bisa dibuka tanpa password dan menampilkan peringatan — **tidak
+disarankan untuk production**.
 
 ---
 
@@ -139,10 +166,11 @@ Cek kredensial Anda:
    - `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN`,
      `DROPBOX_PATH`, `REGISTRY_AUTH_USER`, `REGISTRY_AUTH_PASS`,
      `SYNC_INTERVAL_SECONDS`.
-4. Railway otomatis menyuntikkan `PORT` — nginx akan listen di `$PORT`.
-5. Buat **Volume** dan pasang ke path `/data` (agar blob tetap tersimpan
+4. Tambahkan juga `PANEL_USER` / `PANEL_PASS` untuk mengamankan control panel.
+5. Railway otomatis menyuntikkan `PORT` — nginx akan listen di `$PORT`.
+6. Buat **Volume** dan pasang ke path `/data` (agar blob tetap tersimpan
    antar-restart; Dropbox tetap jadi backup).
-6. Deploy. Pastikan healthcheck `/healthz` hijau.
+7. Deploy. Pastikan healthcheck `/healthz` hijau.
 
 ### B. Docker (lokal / VPS)
 
@@ -176,6 +204,10 @@ docker push <REGISTRY_HOST>/myimage:latest
 > `insecure-registries` di daemon Docker Anda jika memakai HTTP biasa.
 
 ---
+
+## Repository
+
+Repo **private**: <https://github.com/AIamfree/container-image-hosting>
 
 ## Membuat repo private & push (instruksi)
 

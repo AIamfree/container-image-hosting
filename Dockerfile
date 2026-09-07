@@ -20,7 +20,7 @@ RUN apk add --no-cache curl unzip \
 FROM alpine:3.20
 
 # nginx + tools
-RUN apk add --no-cache nginx openssl ca-certificates tzdata \
+RUN apk add --no-cache nginx openssl ca-certificates tzdata python3 \
  && mkdir -p /run/nginx /var/log/nginx /var/lib/nginx /data /etc/nginx/conf.d \
  && chown -R nginx:nginx /run/nginx /var/log/nginx /var/lib/nginx
 
@@ -35,9 +35,12 @@ COPY --from=rclone /usr/bin/rclone /usr/bin/rclone
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
 # placeholder include untuk basic-auth (diisi oleh entrypoint saat runtime)
-RUN touch /etc/nginx/conf.d/auth.inc
+RUN touch /etc/nginx/conf.d/auth.inc /etc/nginx/conf.d/auth_panel.inc
 
 # Scripts
+# Control panel (backend Python stdlib + UI)
+COPY panel/ /panel/
+
 COPY entrypoint.sh /entrypoint.sh
 COPY sync.sh /scripts/sync.sh
 RUN chmod +x /entrypoint.sh /scripts/sync.sh

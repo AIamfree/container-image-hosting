@@ -1,6 +1,6 @@
 #!/bin/sh
 # =====================================================================
-#  Entrypoint: konfigurasi runtime lalu jalankan registry + nginx + sync
+#  Entrypoint: konfigurasi runtime lalu jalankan registry + panel + nginx + sync
 #  Semua kredensial dibaca dari ENVIRONMENT VARIABLE (tidak pernah
 #  ditulis ke file yang di-commit).
 # =====================================================================
@@ -36,10 +36,23 @@ if [ -n "${REGISTRY_AUTH_USER:-}" ] && [ -n "${REGISTRY_AUTH_PASS:-}" ]; then
   printf '%s:%s\n' "$REGISTRY_AUTH_USER" "$HASH" > /etc/nginx/.htpasswd
   chmod 644 /etc/nginx/.htpasswd
   printf 'auth_basic "Container Registry";\nauth_basic_user_file /etc/nginx/.htpasswd;\n' > "$AUTH_CONF"
-  LOG "Basic auth AKTIF untuk user: ${REGISTRY_AUTH_USER}"
+  LOG "Basic auth registry AKTIF untuk user: ${REGISTRY_AUTH_USER}"
 else
   : > "$AUTH_CONF"
-  LOG "Basic auth nonaktif (isi REGISTRY_AUTH_USER/PASS untuk mengaktifkan)"
+  LOG "Basic auth registry nonaktif (isi REGISTRY_AUTH_USER/PASS untuk mengaktifkan)"
+fi
+
+# ---------- 2b. Basic auth untuk control panel (opsional) ----------
+PANEL_AUTH_CONF=/etc/nginx/conf.d/auth_panel.inc
+if [ -n "${PANEL_PASS:-}" ]; then
+  PHASH=$(openssl passwd -apr1 "$PANEL_PASS")
+  printf '%s:%s\n' "${PANEL_USER:-admin}" "$PHASH" > /etc/nginx/.htpasswd_panel
+  chmod 644 /etc/nginx/.htpasswd_panel
+  printf 'auth_basic "Control Panel";\nauth_basic_user_file /etc/nginx/.htpasswd_panel;\n' > "$PANEL_AUTH_CONF"
+  LOG "Control panel terlindungi basic auth (user: ${PANEL_USER:-admin})"
+else
+  : > "$PANEL_AUTH_CONF"
+  LOG "PERINGATAN: PANEL_PASS kosong -> control panel TANPA password (set PANEL_PASS untuk mengamankan)"
 fi
 
 # ---------- 3. Port listen (Railway menyuntikkan $PORT) ----------
@@ -70,6 +83,15 @@ export REGISTRY_HTTP_ADDR="${REGISTRY_HTTP_ADDR:-:5000}"
 REGISTRY_PID=$!
 LOG "Registry berjalan (pid ${REGISTRY_PID}) di ${REGISTRY_HTTP_ADDR}"
 
+# ---------- 5b. Control panel (backend Python stdlib) ----------
+if command -v python3 >/dev/null 2>&1; then
+  python3 /panel/server.py &
+  PANEL_PID=$!
+  LOG "Control panel berjalan (pid ${PANEL_PID}) -> buka <host>/_panel/"
+else
+  LOG "python3 tidak ditemukan -> control panel nonaktif"
+fi
+
 # ---------- 6. Loop sinkronisasi berkala: /data -> Dropbox ----------
 if [ "$HAS_SYNC" = "1" ]; then
   (
@@ -85,6 +107,7 @@ fi
 # ---------- 7. Graceful shutdown: sync terakhir + hentikan proses ----------
 stop_all() {
   LOG "menghentikan layanan..."
+  [ -n "${PANEL_PID:-}" ] && kill "$PANEL_PID" 2>/dev/null || true
   [ -n "${SYNC_PID:-}" ] && kill "$SYNC_PID" 2>/dev/null || true
   if [ "$HAS_SYNC" = "1" ]; then
     /scripts/sync.sh || true
