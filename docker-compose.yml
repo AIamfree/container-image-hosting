@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    image: container-image-hosting:local
+    container_name: container-image-hosting
+    env_file:
+      - .env
+    environment:
+      # Lokal: jalankan nginx di port 80 (host memetakan 8080 -> 80)
+      PORT: "80"
+    ports:
+      - "${HOST_PORT:-8080}:80"
+    volumes:
+      - registry-data:/data
+    restart: unless-stopped
+
+volumes:
+  registry-data:

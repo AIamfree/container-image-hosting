@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+.env.example
+README.md
+SECURITY.md
+docker-compose.yml
+railway.json
+check_dropbox.sh
+data/
+*.log

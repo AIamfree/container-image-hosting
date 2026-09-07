@@ -1,0 +1,99 @@
+#!/bin/sh
+# =====================================================================
+#  Entrypoint: konfigurasi runtime lalu jalankan registry + nginx + sync
+#  Semua kredensial dibaca dari ENVIRONMENT VARIABLE (tidak pernah
+#  ditulis ke file yang di-commit).
+# =====================================================================
+set -e
+
+LOG() { echo "[entrypoint] $*"; }
+
+# ---------- 1. Konfigurasi remote Dropbox untuk rclone ----------
+# rclone membaca config langsung dari env: RCLONE_CONFIG_<NAME>_<KEY>
+HAS_SYNC=0
+if [ -n "${DROPBOX_REFRESH_TOKEN:-}" ]; then
+  export RCLONE_CONFIG_DROPBOX_TYPE="dropbox"
+  export RCLONE_CONFIG_DROPBOX_CLIENT_ID="${DROPBOX_APP_KEY:-}"
+  export RCLONE_CONFIG_DROPBOX_CLIENT_SECRET="${DROPBOX_APP_SECRET:-}"
+  export RCLONE_CONFIG_DROPBOX_TOKEN="${DROPBOX_REFRESH_TOKEN}"
+  HAS_SYNC=1
+  LOG "Dropbox remote terkonfigurasi (refresh token ditemukan)"
+else
+  LOG "PERINGATAN: DROPBOX_REFRESH_TOKEN kosong -> sinkronisasi Dropbox NONAKTIF (mode lokal saja)"
+fi
+
+DROPBOX_PATH="${DROPBOX_PATH:-container-images}"
+REMOTE="dropbox:${DROPBOX_PATH}"
+LOCAL="${REGISTRY_STORAGE_DIR:-/data}"
+SYNC_INTERVAL="${SYNC_INTERVAL_SECONDS:-300}"
+
+mkdir -p "$LOCAL"
+
+# ---------- 2. Basic auth opsional untuk registry (nginx) ----------
+AUTH_CONF=/etc/nginx/conf.d/auth.inc
+if [ -n "${REGISTRY_AUTH_USER:-}" ] && [ -n "${REGISTRY_AUTH_PASS:-}" ]; then
+  HASH=$(openssl passwd -apr1 "$REGISTRY_AUTH_PASS")
+  printf '%s:%s\n' "$REGISTRY_AUTH_USER" "$HASH" > /etc/nginx/.htpasswd
+  chmod 644 /etc/nginx/.htpasswd
+  printf 'auth_basic "Container Registry";\nauth_basic_user_file /etc/nginx/.htpasswd;\n' > "$AUTH_CONF"
+  LOG "Basic auth AKTIF untuk user: ${REGISTRY_AUTH_USER}"
+else
+  : > "$AUTH_CONF"
+  LOG "Basic auth nonaktif (isi REGISTRY_AUTH_USER/PASS untuk mengaktifkan)"
+fi
+
+# ---------- 3. Port listen (Railway menyuntikkan $PORT) ----------
+NGINX_CONF=/etc/nginx/conf.d/default.conf
+if [ -n "${PORT:-}" ] && [ "$PORT" != "80" ]; then
+  sed -i "s/listen 80;/listen 80;\n    listen ${PORT};/" "$NGINX_CONF"
+  LOG "nginx listen di port 80 + ${PORT}"
+fi
+
+# ---------- 4. Restore storage dari Dropbox jika volume kosong ----------
+if [ "$HAS_SYNC" = "1" ]; then
+  if [ -z "$(ls -A "$LOCAL" 2>/dev/null)" ]; then
+    LOG "Volume kosong -> restore dari ${REMOTE}"
+    if rclone copy "$REMOTE" "$LOCAL" --transfers 4 --checkers 8 --log-level ERROR; then
+      LOG "Restore selesai"
+    else
+      LOG "Restore dilewati/gagal (folder Dropbox masih kosong?)"
+    fi
+  else
+    LOG "Volume sudah terisi -> lewati restore"
+  fi
+fi
+
+# ---------- 5. Jalankan Docker Registry v2 ----------
+export REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY="$LOCAL"
+export REGISTRY_HTTP_ADDR="${REGISTRY_HTTP_ADDR:-:5000}"
+/opt/registry/registry serve /etc/registry/config.yml &
+REGISTRY_PID=$!
+LOG "Registry berjalan (pid ${REGISTRY_PID}) di ${REGISTRY_HTTP_ADDR}"
+
+# ---------- 6. Loop sinkronisasi berkala: /data -> Dropbox ----------
+if [ "$HAS_SYNC" = "1" ]; then
+  (
+    while true; do
+      sleep "$SYNC_INTERVAL"
+      /scripts/sync.sh || LOG "sync gagal, akan dicoba lagi dalam ${SYNC_INTERVAL}s"
+    done
+  ) &
+  SYNC_PID=$!
+  LOG "Sync loop aktif setiap ${SYNC_INTERVAL}s"
+fi
+
+# ---------- 7. Graceful shutdown: sync terakhir + hentikan proses ----------
+stop_all() {
+  LOG "menghentikan layanan..."
+  [ -n "${SYNC_PID:-}" ] && kill "$SYNC_PID" 2>/dev/null || true
+  if [ "$HAS_SYNC" = "1" ]; then
+    /scripts/sync.sh || true
+  fi
+  kill "$REGISTRY_PID" 2>/dev/null || true
+  exit 0
+}
+trap stop_all TERM INT
+
+# ---------- 8. nginx di foreground ----------
+LOG "menjalankan nginx"
+exec nginx -g 'daemon off;'

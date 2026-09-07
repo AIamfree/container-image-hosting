@@ -1,0 +1,23 @@
+# ===== RAHASIA — JANGAN PERNAH DI-COMMIT =====
+.env
+.env.local
+.env.*.local
+rclone.conf
+.htpasswd
+
+# ===== data runtime =====
+data/
+
+# ===== logs =====
+*.log
+logs/
+
+# ===== OS / editor =====
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# ===== docker local override =====
+docker-compose.override.yml
