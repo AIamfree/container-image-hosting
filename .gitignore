@@ -21,3 +21,7 @@ Thumbs.db
 
 # ===== docker local override =====
 docker-compose.override.yml
+
+# ===== python =====
+__pycache__/
+*.pyc
