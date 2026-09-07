@@ -7,7 +7,7 @@
 # =====================================================================
 
 REMOTE="dropbox:${DROPBOX_PATH:-container-images}"
-LOCAL="${REGISTRY_STORAGE_DIR:-/data}"
+LOCAL="${DATA_DIR:-/data}"
 STATE="${LOCAL}/.sync_status.json"
 
 # Lock sederhana (mkdir atomik) agar tidak ada 2 sync bersamaan
@@ -30,6 +30,7 @@ if rclone sync "$LOCAL" "$REMOTE" \
      --log-level ERROR \
      --exclude '.DS_Store' \
      --exclude '.sync_status.json' \
+     --exclude '**/_uploads/**' \
      2>"$ERR"; then
   printf '{"last_sync":"%s","ok":true,"error":""}\n' "$DATE" > "$STATE"
   rm -f "$ERR"

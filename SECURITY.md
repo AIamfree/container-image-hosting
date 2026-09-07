@@ -16,8 +16,8 @@ Proyek ini dirancang agar **tidak ada kredensial yang masuk ke git**.
 
 - JANGAN pernah `git add .env` atau mengirim token ke repo/chat publik.
 - Gunakan **refresh token**, bukan access token `sl.` (short-lived, ±4 jam).
-- Aktifkan **basic auth** dengan mengisi `REGISTRY_AUTH_USER` dan
-  `REGISTRY_AUTH_PASS` agar registry tidak terbuka untuk push/pull publik.
+- Aktifkan **basic auth** dengan mengisi `AUTH_USER` dan
+  `AUTH_PASS` agar registry tidak terbuka untuk push/pull publik.
 - Jika token pernah bocor: segera revoke di
   [Dropbox App Console](https://www.dropbox.com/developers/apps) lalu buat
   token baru.

@@ -29,7 +29,7 @@ PANEL_PASS = os.environ.get("PANEL_PASS", "")
 
 DROPBOX_PATH = os.environ.get("DROPBOX_PATH", "container-images")
 SYNC_INTERVAL = os.environ.get("SYNC_INTERVAL_SECONDS", "300")
-DATA_DIR = os.environ.get("REGISTRY_STORAGE_DIR", "/data")
+DATA_DIR = os.environ.get("DATA_DIR", "/data")
 
 STATE_FILE = os.path.join(DATA_DIR, ".sync_status.json")
 SYNC_LOCKDIR = "/tmp/.sync.lockdir"
@@ -116,8 +116,8 @@ def status_payload():
             "app_secret_set": bool(os.environ.get("DROPBOX_APP_SECRET")),
             "refresh_token_set": bool(os.environ.get("DROPBOX_REFRESH_TOKEN")),
             "registry_auth_enabled": bool(
-                os.environ.get("REGISTRY_AUTH_USER")
-                and os.environ.get("REGISTRY_AUTH_PASS")
+                os.environ.get("AUTH_USER")
+                and os.environ.get("AUTH_PASS")
             ),
         },
     }

@@ -122,7 +122,7 @@ Lalu isi nilai di `.env`:
 | `DROPBOX_REFRESH_TOKEN` | Blok JSON refresh token (untuk sync) |
 | `DROPBOX_ACCESS_TOKEN` | (Opsional) token `sl.` untuk uji cepat |
 | `DROPBOX_PATH` | Folder tujuan di Dropbox (default `container-images`) |
-| `REGISTRY_AUTH_USER` / `REGISTRY_AUTH_PASS` | (Opsional) basic auth registry |
+| `AUTH_USER` / `AUTH_PASS` | (Opsional) basic auth registry |
 | `PANEL_USER` / `PANEL_PASS` | (Opsional) kredensial control panel di `/_panel/` |
 | `SYNC_INTERVAL_SECONDS` | Interval backup ke Dropbox (default 300) |
 
@@ -164,7 +164,7 @@ disarankan untuk production**.
 2. Di Railway: **New Project → Deploy from GitHub repo** (pilih repo ini).
 3. Buka tab **Variables** dan tambahkan semua variabel dari `.env`:
    - `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN`,
-     `DROPBOX_PATH`, `REGISTRY_AUTH_USER`, `REGISTRY_AUTH_PASS`,
+     `DROPBOX_PATH`, `AUTH_USER`, `AUTH_PASS`,
      `SYNC_INTERVAL_SECONDS`.
 4. Tambahkan juga `PANEL_USER` / `PANEL_PASS` untuk mengamankan control panel.
 5. Railway otomatis menyuntikkan `PORT` — nginx akan listen di `$PORT`.
